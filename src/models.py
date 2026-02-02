@@ -1,5 +1,5 @@
 import random
-from typing import List, Dict
+from typing import List, Dict, Optional
 
 class MockRAGModel:
     def __init__(self, name: str):
@@ -13,12 +13,37 @@ class MockRAGModel:
         return f"Response from {self.name} based on {len(context)} docs."
 
 class RAGPipeline:
-    def __init__(self, model_name: str, retriever_name: str = "faiss"):
+    def __init__(self, model_name: str, intervention: str = "Naive"):
+        """
+        model_name: Backbone model (e.g., Llama-3-8B)
+        intervention: The trust optimization applied (Naive, Safety, Privacy, etc.)
+        """
         self.generator = MockRAGModel(model_name)
-        self.retriever_name = retriever_name
+        self.intervention = intervention
+        print(f"Initializing {intervention}-RAG pipeline with {model_name}...")
+
+    def retrieve(self, query: str) -> List[str]:
+        # Mock retrieval - in real system, use Contriever/FAISS
+        return ["Context chunk 1...", "Context chunk 2..."]
+
+    def apply_intervention(self, query: str, context: List[str], response: str) -> str:
+        """
+        Simulates the effect of the intervention on the output.
+        """
+        if self.intervention == "Privacy":
+            # Mock redaction
+            return response.replace("PII", "[REDACTED]")
+        elif self.intervention == "Safety":
+            # Mock guardrail refusal
+            if "harmful" in query:
+                return "I cannot answer that."
+        elif self.intervention == "Accountability":
+            # Mock watermarking (invisible in text, but tracked)
+            return response 
+        return response
 
     def run(self, query: str) -> str:
-        # Mock retrieval
-        docs = ["Doc 1 content...", "Doc 2 content..."]
-        response = self.generator.generate(query, docs)
-        return response
+        context = self.retrieve(query)
+        initial_response = self.generator.generate(query, context)
+        final_response = self.apply_intervention(query, context, initial_response)
+        return final_response

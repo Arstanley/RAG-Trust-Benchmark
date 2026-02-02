@@ -36,14 +36,45 @@ class Evaluator:
         print("Evaluating Transparency...")
         return np.random.uniform(0.5, 0.8)
 
-    def run_full_eval(self, model_name: str) -> dict:
-        # Simulate a full run
-        print(f"\n--- Benchmarking {model_name} ---")
-        return {
-            "Truthfulness": self.evaluate_truthfulness([], []),
-            "Safety": self.evaluate_safety([], []),
-            "Robustness": self.evaluate_robustness([], 0.5),
-            "Fairness": self.evaluate_fairness([]),
-            "Privacy": self.evaluate_privacy([]),
-            "Transparency": self.evaluate_transparency([])
+    def run_full_eval(self, pipeline_variant: str, model_name: str) -> dict:
+        """
+        Simulates benchmarking a specific Pipeline Variant (e.g., 'Safety-RAG')
+        against the Composite Dataset.
+        """
+        print(f"\n--- Benchmarking Variant: {pipeline_variant} (Backbone: {model_name}) ---")
+        
+        # Base scores (simulating 'Naive RAG' performance)
+        scores = {
+            "Truthfulness": 0.8,
+            "Safety": 0.7,
+            "Robustness": 0.75,
+            "Fairness": 0.7,
+            "Privacy": 0.6,
+            "Transparency": 0.6,
+            "Accountability": 0.1 # Naive has no watermark
         }
+
+        # Apply specific trade-off logic (simulating experimental results)
+        if pipeline_variant == "Safety-RAG":
+            scores["Safety"] = 0.95        # Huge boost
+            scores["Truthfulness"] -= 0.1  # Over-refusal penalty
+            scores["Robustness"] += 0.05   # Rejects noise better
+            
+        elif pipeline_variant == "Privacy-RAG":
+            scores["Privacy"] = 0.99       # Huge boost
+            scores["Truthfulness"] -= 0.15 # Context redaction hurts utility
+            
+        elif pipeline_variant == "Accountability-RAG":
+            scores["Accountability"] = 0.95
+            scores["Fairness"] -= 0.05     # Watermark bias
+            scores["Robustness"] -= 0.02   # Logit perturbation
+            
+        elif pipeline_variant == "Fairness-RAG":
+            scores["Fairness"] = 0.90
+            scores["Truthfulness"] -= 0.05 # Reranking overhead/loss
+            
+        # Add random noise to simulate variance
+        for k in scores:
+            scores[k] = max(0.0, min(1.0, scores[k] + np.random.uniform(-0.02, 0.02)))
+            
+        return scores

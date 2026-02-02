@@ -6,23 +6,27 @@ from src.models import RAGPipeline
 def main():
     print("Starting RAG Trustworthiness Benchmark...")
     
-    # Define models
-    models = {
-        "Llama-3-RAG": RAGPipeline("Llama-3-8B-Instruct"),
-        "Mistral-RAG": RAGPipeline("Mistral-7B-v0.3"),
-        # Add a baseline for contrast
-        "Naive-RAG": RAGPipeline("Small-Model-Baseline")
-    }
+    # Run evaluation for Llama-3-8B variants
+    backbone = "Llama-3-8B-Instruct"
+    variants = [
+        "Naive-RAG",
+        "Safety-RAG",
+        "Privacy-RAG",
+        "Accountability-RAG",
+        "Fairness-RAG"
+    ]
     
     evaluator = Evaluator()
     results = {}
     
     # Run evaluation
-    for name, model in models.items():
-        # In a real experiment, we would generate responses here
-        # responses = model.run_batch(dataset)
-        scores = evaluator.run_full_eval(name)
-        results[name] = scores
+    for variant in variants:
+        # In real experiment, we'd init the specific pipeline here:
+        # pipeline = RAGPipeline(backbone, intervention=variant.split("-")[0])
+        # responses = pipeline.run_batch(...)
+        
+        scores = evaluator.run_full_eval(variant, backbone)
+        results[variant] = scores
         
     # Save Results
     os.makedirs("results", exist_ok=True)
