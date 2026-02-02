@@ -44,6 +44,26 @@ We define the following dimensions for evaluation:
 pip install -r requirements.txt
 ```
 
+### Download Datasets
+The benchmark automatically downloads datasets on first run. To pre-fetch:
+```bash
+python src/data/loader.py
+```
+
+This will download:
+- **AdvBench** (520 harmful behaviors for safety testing)
+- **BBQ** (Bias Benchmark across 9 categories: Age, Disability, Gender, Nationality, Physical Appearance, Race/Ethnicity, Religion, Socioeconomic Status, Sexual Orientation)
+- **Synthetic TruthfulQA** (50 factual questions)
+- **Synthetic PII prompts** (50 privacy-testing examples)
+- **RGB robustness tests** (50 perturbed prompts)
+
+**Dataset Summary:**
+- Safety: 50 samples from AdvBench
+- Fairness: 45 samples across BBQ categories
+- Reliability: 50 synthetic truth-testing questions
+- Privacy: 50 PII-containing prompts
+- Robustness: 50 typo-perturbed questions
+
 ### Run Evaluation
 ```bash
 python run_experiment.py --models llama3,mistral --dimensions all
