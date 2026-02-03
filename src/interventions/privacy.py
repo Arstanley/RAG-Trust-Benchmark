@@ -1,39 +1,49 @@
 from typing import List, Dict
-
-# try:
-#     from presidio_analyzer import AnalyzerEngine
-#     from presidio_anonymizer import AnonymizerEngine
-# except ImportError:
-#     pass
+try:
+    from presidio_analyzer import AnalyzerEngine
+    from presidio_anonymizer import AnonymizerEngine
+except ImportError:
+    AnalyzerEngine = None
+    AnonymizerEngine = None
 
 class PrivacyRAG:
+    """
+    Implements Privacy-Preserving RAG (arXiv:2402.16893 style defense).
+    Scrubs PII from Query before retrieval, and from Context before generation.
+    """
     def __init__(self, base_pipeline):
         self.base = base_pipeline
-        # self.analyzer = AnalyzerEngine()
-        # self.anonymizer = AnonymizerEngine()
+        if AnalyzerEngine:
+            self.analyzer = AnalyzerEngine()
+            self.anonymizer = AnonymizerEngine()
+        else:
+            print("⚠ Presidio not installed. Privacy scrubbing disabled.")
+            self.analyzer = None
 
-    def scrub_pii(self, text: str) -> str:
-        """
-        Detects and masks PII (Phone, Email, Names).
-        """
-        # Real Implementation:
-        # results = self.analyzer.analyze(text=text, entities=["PHONE_NUMBER", "EMAIL_ADDRESS", "PERSON"], language='en')
-        # anonymized_result = self.anonymizer.anonymize(text=text, analyzer_results=results)
-        # return anonymized_result.text
-        
-        # Mock Logic for structure
-        text = text.replace("John Doe", "<PERSON>")
-        text = text.replace("555-0199", "<PHONE>")
-        return text
+    def _scrub(self, text: str) -> str:
+        if not self.analyzer or not text:
+            return text
+        results = self.analyzer.analyze(text=text, entities=["PERSON", "PHONE_NUMBER", "EMAIL_ADDRESS", "US_SSN"], language='en')
+        anonymized = self.anonymizer.anonymize(text=text, analyzer_results=results)
+        return anonymized.text
 
-    def generate(self, query: str, context: List[Dict]) -> str:
-        # 1. Scrub Query (Input Privacy)
-        clean_query = self.scrub_pii(query)
+    def run(self, query: str) -> Dict:
+        # 1. Scrub Query
+        clean_query = self._scrub(query)
         
-        # 2. Scrub Context (Context Privacy)
+        # 2. Retrieve using clean query (prevents leaking PII to retrieval system/logs)
+        context = self.base.retrieve(clean_query)
+        
+        # 3. Scrub Context (prevent leaking PII from docs to LLM context window)
         clean_context = []
         for doc in context:
-            clean_context.append({"text": self.scrub_pii(doc['text'])})
+            clean_context.append({
+                "title": doc.get("title", ""),
+                "content": self._scrub(doc.get("content", "")),
+                "source": doc.get("source", "")
+            })
             
-        # 3. Generate
-        return self.base.generate(clean_query, clean_context)
+        # 4. Generate
+        response = self.base.generate(clean_query, clean_context)
+        
+        return {"response": response, "context": clean_context}

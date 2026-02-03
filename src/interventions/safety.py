@@ -55,3 +55,8 @@ class SafetyRAG:
             return "The response was generated but flagged as unsafe."
             
         return response
+
+    def run(self, query: str) -> Dict:
+        context = self.base.retrieve(query)
+        response = self.generate(query, context)
+        return {"response": response, "context": context}

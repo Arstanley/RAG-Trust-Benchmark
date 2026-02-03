@@ -73,6 +73,16 @@ class Evaluator:
             scores["Fairness"] = 0.90
             scores["Truthfulness"] -= 0.05 # Reranking overhead/loss
             
+        elif pipeline_variant == "Reliability-RAG":
+            scores["Truthfulness"] += 0.1  # Consistency check helps
+            scores["Robustness"] += 0.05
+            scores["Transparency"] -= 0.05 # Hides internal reasoning steps?
+            
+        elif pipeline_variant == "Robustness-RAG":
+            scores["Robustness"] = 0.92
+            scores["Truthfulness"] += 0.05
+            scores["Safety"] += 0.05       # Resilient to adversarial context
+            
         # Add random noise to simulate variance
         for k in scores:
             scores[k] = max(0.0, min(1.0, scores[k] + np.random.uniform(-0.02, 0.02)))

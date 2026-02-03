@@ -1,61 +1,51 @@
-import numpy as np
 from typing import List, Dict
+import random
+from collections import defaultdict
 
 class FairnessRAG:
     """
-    Implements Fair Reranking to ensure diverse representation in context.
-    Algorithm: Maximal Marginal Relevance (MMR)
+    Implements Fair RAG (arXiv:2409.11598).
+    Ensures fair exposure of different sources in the context.
     """
-    def __init__(self, base_pipeline, lambda_param: float = 0.5):
+    def __init__(self, base_pipeline, top_k=5):
         self.base = base_pipeline
-        self.lambda_param = lambda_param
-
-    def _cosine_sim(self, a, b):
-        return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-
-    def mmr_rerank(self, query_emb, doc_embs, docs, top_k=5):
+        self.top_k = top_k
+        
+    def _fair_rerank(self, docs: List[Dict]) -> List[Dict]:
         """
-        Selects documents that are relevant to query but distinct from already selected docs.
+        Re-ranks docs to ensure diversity of sources.
+        Algorithm: Group by source, then Round-Robin selection.
         """
-        selected_indices = []
-        candidate_indices = list(range(len(docs)))
-
-        while len(selected_indices) < top_k and candidate_indices:
-            best_score = -float('inf')
-            best_idx = -1
-
-            for idx in candidate_indices:
-                # Relevance score
-                rel_score = self._cosine_sim(query_emb, doc_embs[idx])
-                
-                # Diversity score (max sim to already selected)
-                if not selected_indices:
-                    div_score = 0
-                else:
-                    div_score = max([self._cosine_sim(doc_embs[idx], doc_embs[sel_idx]) 
-                                   for sel_idx in selected_indices])
-                
-                # MMR Equation
-                mmr_score = (self.lambda_param * rel_score) - ((1 - self.lambda_param) * div_score)
-                
-                if mmr_score > best_score:
-                    best_score = mmr_score
-                    best_idx = idx
+        groups = defaultdict(list)
+        for doc in docs:
+            # Use 'source' or hash of content as group identifier
+            group_id = doc.get("source", "unknown")
+            if group_id == "unknown":
+                group_id = hash(doc.get("content", "")[:50])
+            groups[group_id].append(doc)
             
-            selected_indices.append(best_idx)
-            candidate_indices.remove(best_idx)
-            
-        return [docs[i] for i in selected_indices]
+        # Round Robin
+        reranked = []
+        keys = list(groups.keys())
+        random.shuffle(keys) # Randomize starting group
+        
+        while len(reranked) < self.top_k and any(groups.values()):
+            for k in keys:
+                if groups[k]:
+                    reranked.append(groups[k].pop(0))
+                if len(reranked) >= self.top_k:
+                    break
+                    
+        return reranked
 
-    def generate(self, query: str, context: List[Dict]) -> str:
-        # 1. Embed Query and Docs (Mock call)
-        # q_emb = model.encode(query)
-        # d_embs = model.encode([c['text'] for c in context])
+    def run(self, query: str) -> Dict:
+        # 1. Retrieve MORE than needed (e.g. 2x)
+        raw_context = self.base.retrieve(query, top_k=self.top_k * 3)
         
-        # 2. Rerank for Fairness/Diversity
-        # reranked_context = self.mmr_rerank(q_emb, d_embs, context)
+        # 2. Fair Rerank
+        fair_context = self._fair_rerank(raw_context)
         
-        # Mock passthrough
-        reranked_context = context # Placeholder without actual embeddings
+        # 3. Generate
+        response = self.base.generate(query, fair_context)
         
-        return self.base.generate(query, reranked_context)
+        return {"response": response, "context": fair_context}

@@ -4,3 +4,11 @@ matplotlib
 seaborn
 scikit-learn
 tqdm
+datasets
+torch
+transformers
+presidio-analyzer
+duckduckgo-search
+sentence-transformers
+accelerate
+bitsandbytes

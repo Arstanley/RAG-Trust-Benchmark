@@ -1,25 +1,40 @@
-from collections import Counter
 from typing import List, Dict
+import numpy as np
+from collections import Counter
 
 class ReliabilityRAG:
     """
-    Implements Self-Consistency (Majoriy Voting) to improve robustness.
+    Implements Reliability through Consistency Checking (proxy for TRAQ-like guarantees).
+    Generates multiple responses and checks for consensus.
     """
-    def __init__(self, base_pipeline, n_paths: int = 3):
+    def __init__(self, base_pipeline, num_samples=5):
         self.base = base_pipeline
-        self.n_paths = n_paths
-
+        self.num_samples = num_samples
+        
     def generate(self, query: str, context: List[Dict]) -> str:
-        candidates = []
-        
-        # 1. Generate N paths (with high temperature usually)
-        for _ in range(self.n_paths):
-            # In production, set do_sample=True, temperature=0.7
-            response = self.base.generate(query, context)
-            candidates.append(response)
+        # Generate N samples
+        responses = []
+        for _ in range(self.num_samples):
+            # We need to force sampling in the base LLM. 
+            # Assuming base.llm.generate uses do_sample=True (it does in my impl).
+            resp = self.base.generate(query, context)
+            responses.append(resp.strip())
             
-        # 2. Majority Vote (Simplistic string matching)
-        # Real impl needs semantic equivalence check (e.g. using NLI)
-        most_common = Counter(candidates).most_common(1)[0][0]
+        # semantic clustering (simplified as exact match frequency here for robustness)
+        # In a full impl, use DeBERTa-NLI or embeddings to check equivalence.
+        # For this benchmark, we'll use a simplified majority vote.
         
+        counts = Counter(responses)
+        most_common, count = counts.most_common(1)[0]
+        
+        confidence = count / self.num_samples
+        
+        if confidence < 0.5:
+            return f"Uncertain (Confidence: {confidence:.2f}). Possible answers: {', '.join(responses[:3])}"
+            
         return most_common
+
+    def run(self, query: str) -> Dict:
+        context = self.base.retrieve(query)
+        response = self.generate(query, context)
+        return {"response": response, "context": context}
